@@ -1,0 +1,111 @@
+const API_BASE_URL = (import.meta.env.VITE_API_URL || "http://localhost:5000/api").replace(/\/$/, "");
+
+export const authStorage = {
+  getToken: () => localStorage.getItem("citifix_token"),
+  setToken: (token) => localStorage.setItem("citifix_token", token),
+  clearToken: () => localStorage.removeItem("citifix_token"),
+};
+
+const getAuthHeaders = () => {
+  const token = authStorage.getToken();
+  if (!token) return {};
+  return { Authorization: `Bearer ${token}` };
+};
+
+const request = async (path, options = {}) => {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+      ...(options.headers || {}),
+    },
+    ...options,
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || "Request failed");
+  }
+  return data;
+};
+
+export const authApi = {
+  requestOtp: (phone, purpose) =>
+    request("/auth/request-otp", {
+      method: "POST",
+      body: JSON.stringify({ phone, purpose }),
+    }),
+
+  verifyLoginOtp: (phone, otp) =>
+    request("/auth/login/verify", {
+      method: "POST",
+      body: JSON.stringify({ phone, otp }),
+    }),
+
+  registerWithOtp: ({ name, email, phone, role, otp }) =>
+    request("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ name, email, phone, role, otp }),
+    }),
+
+  me: () => request("/auth/me"),
+};
+
+export const complaintsApi = {
+  create: (payload) =>
+    request("/complaints", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  list: () => request("/complaints"),
+
+  listMine: () => request("/complaints/user/my-complaints"),
+
+  vote: (complaintId) =>
+    request(`/complaints/${complaintId}/vote`, {
+      method: "POST",
+    }),
+
+  update: (complaintId, payload) =>
+    request(`/complaints/${complaintId}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+};
+
+export const adminApi = {
+  analytics: () => request("/admin/analytics"),
+  complaints: () => request("/admin/complaints?limit=500"),
+  updateStatus: (complaintId, status) =>
+    request(`/admin/complaints/${complaintId}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+};
+
+export const leaderboardApi = {
+  list: () => request("/leaderboard"),
+};
+
+export const superAdminApi = {
+  users: () => request("/superadmin/users"),
+  setRole: (userId, role) => request(`/superadmin/users/${userId}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
+  assignSubAdmin: (complaintId, subAdminId) => request(`/superadmin/complaints/${complaintId}/assign`, { method: "POST", body: JSON.stringify({ subAdminId }) }),
+  unassign: (complaintId) => request(`/superadmin/complaints/${complaintId}/assign`, { method: "DELETE" }),
+  getSlaConfigs: () => request("/superadmin/sla"),
+  setSla: (department, days) => request(`/superadmin/sla/${department}`, { method: "PUT", body: JSON.stringify({ daysToResolve: days }) }),
+};
+
+export const subAdminApi = {
+  myComplaints: () => request("/subadmin/complaints"),
+  updateStatus: (complaintId, status) => request(`/subadmin/complaints/${complaintId}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+};
+
+export const chatApi = {
+  sendMessage: (message, history = []) =>
+    request("/chat", {
+      method: "POST",
+      body: JSON.stringify({ message, history }),
+    }),
+};
