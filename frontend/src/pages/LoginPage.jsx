@@ -5,9 +5,11 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { authApi } from '@/lib/api.js';
+import logo from '../assets/citifix-logo.png';
 import Beams from '../components/Background';
 import Navbar from '../components/Navbar';
 
@@ -15,7 +17,6 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
   const { toast } = useToast();
-  const logoUrl = "https://horizons-cdn.hostinger.com/a6afdcf9-aaa7-4281-ba79-be0f31c772d0/384adb0a13bc13709264589f14f2ae52.jpg";
 
   const [step, setStep] = useState(1);
   const [phone, setPhone] = useState('');
@@ -116,12 +117,19 @@ const LoginPage = () => {
     animate={{ opacity: 1, y: 0 }}
     className="relative z-10 w-full max-w-md"
   >
-    <div className="bg-gradient-to-r from-white/20 to-white/30 rounded-3xl shadow-[0_30px_80px_-30px_rgba(255,255,255,0.25)] 
+    <div className="relative bg-gradient-to-r from-white/20 to-white/30 rounded-3xl shadow-[0_30px_80px_-30px_rgba(255,255,255,0.25)] 
       p-8 border border-black/10">
+      
+      <button 
+        onClick={() => navigate('/')}
+        className="absolute top-6 right-6 text-white/60 hover:text-white transition-colors"
+      >
+        <X size={24} />
+      </button>
 
       
-      <div className="flex items-center justify-center gap-2 mb-8">
-        <img src={logoUrl} alt="CITIFIX Logo" className="w-10 h-10 rounded-lg" />
+      <div className="flex items-center justify-center gap-3 mb-8">
+        <img src={logo} alt="CITIFIX Logo" className="w-12 h-12 rounded-xl object-cover shadow-lg" />
         <span className="text-2xl font-bold tracking-wide text-white/90">
           CITIFIX
         </span>

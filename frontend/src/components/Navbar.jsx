@@ -53,7 +53,7 @@ export default function Navbar() {
 
             <Button
               className="bg-white/90 hover:bg-white/20 border border-white hover:text-white text-black/90 rounded-3xl text-sm px-6"
-              onClick={() => navigate("/register")}
+              onClick={() => navigate("/login")}
             >
               Get Started
             </Button>
@@ -82,7 +82,7 @@ export default function Navbar() {
 
             <Button
               className="w-full bg-white/90 hover:bg-white/20 border border-white hover:text-white text-black/90 rounded-3xl"
-              onClick={() => navigate("/register")}
+              onClick={() => navigate("/login")}
             >
               Get Started
             </Button>

@@ -2,9 +2,24 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { superAdminApi, adminApi } from "@/lib/api";
 import { motion } from "framer-motion";
-import { Users, ClipboardList, Clock, Search, Shield, ShieldOff, AlertTriangle, CheckCircle, UserPlus, X } from "lucide-react";
+import { Users, ClipboardList, Clock, Search, Shield, ShieldOff, AlertTriangle, CheckCircle, UserPlus, X, BarChart2 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useToast } from "@/components/ui/use-toast";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell
+} from "recharts";
+
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
 
 const DEPARTMENTS = [
   { id: 'Roads', label: 'Roads & Transport', icon: '🛣️' },
@@ -25,12 +40,17 @@ const SuperAdminPanel = () => {
   const [users, setUsers] = useState([]);
   const [complaints, setComplaints] = useState([]);
   const [slaConfigs, setSlaConfigs] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
   
   // UI states
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeDept, setActiveDept] = useState("All");
-  const [assignModal, setAssignModal] = useState({ isOpen: false, complaintId: null });
+  const [assignModal, setAssignModal] = useState({
+    isOpen: false, complaintId: null,
+    projectAmount: "", warrantyPeriod: "", projectDeadline: "", projectNote: ""
+  });
+  const [extensionRequests, setExtensionRequests] = useState([]);
 
   useEffect(() => {
     fetchData();
@@ -39,13 +59,17 @@ const SuperAdminPanel = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [usersData, complaintsData, slaData] = await Promise.all([
+      const [usersData, complaintsData, slaData, analyticsData, extRequestsData] = await Promise.all([
         superAdminApi.users(),
         adminApi.complaints(),
-        superAdminApi.getSlaConfigs()
+        superAdminApi.getSlaConfigs(),
+        superAdminApi.getAnalytics(),
+        superAdminApi.getExtensionRequests()
       ]);
       setUsers(usersData);
       setComplaints(complaintsData.complaints || []);
+      setAnalytics(analyticsData);
+      setExtensionRequests(extRequestsData);
       
       // Merge SLA configs with defaults
       const mergedSlas = DEPARTMENTS.map(dept => {
@@ -88,12 +112,28 @@ const SuperAdminPanel = () => {
   const handleAssign = async (subAdminId) => {
     if (!assignModal.complaintId || !subAdminId) return;
     try {
-      const updated = await superAdminApi.assignSubAdmin(assignModal.complaintId, subAdminId);
+      const updated = await superAdminApi.assignSubAdmin(assignModal.complaintId, {
+        subAdminId,
+        projectAmount: assignModal.projectAmount || undefined,
+        warrantyPeriod: assignModal.warrantyPeriod || undefined,
+        projectDeadline: assignModal.projectDeadline || undefined,
+        projectNote: assignModal.projectNote || undefined,
+      });
       setComplaints(complaints.map(c => c.id === assignModal.complaintId ? updated : c));
-      setAssignModal({ isOpen: false, complaintId: null });
+      setAssignModal({ isOpen: false, complaintId: null, projectAmount: "", warrantyPeriod: "", projectDeadline: "", projectNote: "" });
       toast({ title: "Sub-Admin assigned successfully" });
     } catch (err) {
       toast({ title: "Failed to assign", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleReviewExtension = async (requestId, status) => {
+    try {
+      await superAdminApi.reviewExtensionRequest(requestId, { status });
+      setExtensionRequests(prev => prev.map(r => r.id === requestId ? { ...r, status } : r));
+      toast({ title: status === "APPROVED" ? "Extension approved ✅" : "Extension rejected ❌" });
+    } catch (err) {
+      toast({ title: "Failed to review", description: err.message, variant: "destructive" });
     }
   };
 
@@ -153,6 +193,27 @@ const SuperAdminPanel = () => {
           }`}
         >
           <Clock className="w-5 h-5" /> SLA Settings
+        </button>
+        <button
+          onClick={() => setActiveTab("analytics")}
+          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all whitespace-nowrap ${
+            activeTab === "analytics" ? "bg-white text-black" : "bg-white/10 text-white hover:bg-white/20"
+          }`}
+        >
+          <BarChart2 className="w-5 h-5" /> Analytics Overview
+        </button>
+        <button
+          onClick={() => setActiveTab("extensions")}
+          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all whitespace-nowrap ${
+            activeTab === "extensions" ? "bg-white text-black" : "bg-white/10 text-white hover:bg-white/20"
+          }`}
+        >
+          <Clock className="w-5 h-5" /> Extension Requests
+          {extensionRequests.filter(r => r.status === "PENDING").length > 0 && (
+            <span className="bg-rose-500 text-white text-xs font-bold rounded-full px-2 py-0.5 ml-1">
+              {extensionRequests.filter(r => r.status === "PENDING").length}
+            </span>
+          )}
         </button>
       </div>
 
@@ -338,39 +399,268 @@ const SuperAdminPanel = () => {
             </motion.div>
           )}
 
+          {/* TAB 4: ANALYTICS OVERVIEW */}
+          {activeTab === "analytics" && analytics && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-semibold text-white">Analytics Overview</h2>
+              </div>
+              
+              <div className="grid sm:grid-cols-3 gap-6 mb-8">
+                <div className="bg-gradient-to-br from-indigo-500/20 to-purple-500/20 backdrop-blur-md rounded-2xl p-6 border border-white/10">
+                  <p className="text-white/60 text-sm font-medium mb-1">Total System Users</p>
+                  <p className="text-3xl font-bold text-white">
+                    {analytics.system.roles.reduce((acc, curr) => acc + curr._count.id, 0)}
+                  </p>
+                </div>
+                <div className="bg-gradient-to-br from-emerald-500/20 to-teal-500/20 backdrop-blur-md rounded-2xl p-6 border border-white/10">
+                  <p className="text-white/60 text-sm font-medium mb-1">Total Complaints</p>
+                  <p className="text-3xl font-bold text-white">{analytics.system.totalComplaints}</p>
+                </div>
+                <div className="bg-gradient-to-br from-rose-500/20 to-orange-500/20 backdrop-blur-md rounded-2xl p-6 border border-white/10">
+                  <p className="text-white/60 text-sm font-medium mb-1">SLA Breaches</p>
+                  <p className="text-3xl font-bold text-rose-400">{analytics.system.breachedComplaints}</p>
+                </div>
+              </div>
+
+              <div className="grid lg:grid-cols-2 gap-6">
+                {/* SubAdmin Performance Chart */}
+                <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10">
+                  <h3 className="font-bold text-lg text-white mb-4">SubAdmin Case Resolution</h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={analytics.subAdmins}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                      <XAxis dataKey="name" stroke="rgba(255,255,255,0.6)" />
+                      <YAxis stroke="rgba(255,255,255,0.6)" />
+                      <Tooltip contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)' }} />
+                      <Legend />
+                      <Bar dataKey="resolvedCount" name="Resolved" fill="#10b981" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="breachedCount" name="Breached" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+                
+                {/* User Roles Chart */}
+                <div className="bg-white/5 backdrop-blur-xl rounded-2xl p-6 border border-white/10">
+                  <h3 className="font-bold text-lg text-white mb-4">User Roles Distribution</h3>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={analytics.system.roles}
+                        dataKey="_count.id"
+                        nameKey="role"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={100}
+                        label={({ role, percent }) => `${role} ${(percent * 100).toFixed(0)}%`}
+                      >
+                        {analytics.system.roles.map((_, i) => (
+                          <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)' }} />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* SubAdmin Performance Table */}
+              <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden mt-8">
+                <div className="p-6 border-b border-white/10">
+                  <h3 className="font-bold text-lg text-white">SubAdmin Performance Board</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-white/10 text-white/50 text-sm">
+                        <th className="p-4 font-medium">SubAdmin Name</th>
+                        <th className="p-4 font-medium">Assigned</th>
+                        <th className="p-4 font-medium">Resolved</th>
+                        <th className="p-4 font-medium">SLA Breaches</th>
+                        <th className="p-4 font-medium">Avg Resolution Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analytics.subAdmins.length === 0 ? (
+                        <tr>
+                          <td colSpan="5" className="p-8 text-center text-white/50">No SubAdmins found.</td>
+                        </tr>
+                      ) : analytics.subAdmins.map(admin => (
+                        <tr key={admin.id} className="border-b border-white/5 hover:bg-white/5 transition-colors text-white">
+                          <td className="p-4 font-medium">{admin.name}</td>
+                          <td className="p-4 text-emerald-400 font-bold">{admin.assignedCount}</td>
+                          <td className="p-4 text-blue-400 font-bold">{admin.resolvedCount}</td>
+                          <td className="p-4 text-rose-400 font-bold">{admin.breachedCount}</td>
+                          <td className="p-4 text-white/70">
+                            {admin.avgResolutionHours ? `${admin.avgResolutionHours} hrs` : 'N/A'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* TAB 5: EXTENSION REQUESTS */}
+          {activeTab === "extensions" && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-semibold text-white">Extension Requests</h2>
+                <span className="text-white/40 text-sm">{extensionRequests.length} total requests</span>
+              </div>
+
+              {extensionRequests.length === 0 ? (
+                <div className="text-center py-16 text-white/30 italic">No extension requests yet.</div>
+              ) : extensionRequests.map(req => (
+                <div key={req.id} className="bg-white/5 border border-white/10 rounded-2xl p-5 hover:border-white/20 transition-all">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <p className="text-white font-semibold">{req.complaint?.title}</p>
+                      <p className="text-white/50 text-sm">
+                        Category: <span className="text-white/70">{req.complaint?.category}</span> &middot;
+                        SubAdmin: <span className="text-white/70">{req.requestedBy?.name}</span>
+                      </p>
+                      <p className="text-white/40 text-xs">
+                        Current deadline: {req.complaint?.projectDeadline
+                          ? new Date(req.complaint.projectDeadline).toLocaleDateString()
+                          : req.complaint?.slaDeadline
+                          ? new Date(req.complaint.slaDeadline).toLocaleDateString()
+                          : "N/A"}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {req.status === "PENDING" ? (
+                        <>
+                          <button
+                            onClick={() => handleReviewExtension(req.id, "APPROVED")}
+                            className="px-4 py-2 bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-400 border border-emerald-500/30 rounded-xl text-sm font-medium transition-all"
+                          >
+                            ✓ Approve
+                          </button>
+                          <button
+                            onClick={() => handleReviewExtension(req.id, "REJECTED")}
+                            className="px-4 py-2 bg-rose-500/20 hover:bg-rose-500/40 text-rose-400 border border-rose-500/30 rounded-xl text-sm font-medium transition-all"
+                          >
+                            ✕ Reject
+                          </button>
+                        </>
+                      ) : (
+                        <span className={`px-4 py-2 rounded-xl text-sm font-bold border ${
+                          req.status === "APPROVED"
+                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                            : "bg-rose-500/10 text-rose-400 border-rose-500/30"
+                        }`}>
+                          {req.status}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 p-3 bg-white/5 rounded-xl border border-white/5">
+                    <p className="text-white/50 text-xs font-semibold uppercase mb-1">Reason for Extension</p>
+                    <p className="text-white/80 text-sm">{req.reason}</p>
+                    <p className="text-amber-400 text-xs font-semibold mt-1">+{req.requestedDays} days requested</p>
+                  </div>
+                </div>
+              ))}
+            </motion.div>
+          )}
+
         </div>
       )}
 
-      {/* Assignment Modal */}
+      {/* Enhanced Assignment Modal */}
       {assignModal.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <motion.div 
+          <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
+            className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl"
           >
             <div className="flex justify-between items-center p-5 border-b border-white/10">
-              <h3 className="text-lg font-bold text-white">Assign Sub-Admin</h3>
-              <button onClick={() => setAssignModal({ isOpen: false, complaintId: null })} className="text-white/50 hover:text-white">
+              <div>
+                <h3 className="text-lg font-bold text-white">Assign Project to Sub-Admin</h3>
+                <p className="text-white/40 text-sm">Fill in project details before selecting a sub-admin</p>
+              </div>
+              <button onClick={() => setAssignModal({ isOpen: false, complaintId: null, projectAmount: "", warrantyPeriod: "", projectDeadline: "", projectNote: "" })} className="text-white/50 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-5 max-h-[60vh] overflow-y-auto space-y-2">
-              {subAdmins.length === 0 ? (
-                <p className="text-center text-white/50 py-4">No Sub-Admins found. Go to User Management to promote someone.</p>
-              ) : subAdmins.map(admin => (
-                <button
-                  key={admin.id}
-                  onClick={() => handleAssign(admin.id)}
-                  className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-white/10 border border-transparent hover:border-white/20 rounded-xl transition-all text-left group"
-                >
-                  <div>
-                    <div className="font-medium text-white group-hover:text-emerald-400 transition-colors">{admin.name}</div>
-                    <div className="text-xs text-white/50">{admin.phone}</div>
-                  </div>
-                  <CheckCircle className="w-5 h-5 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </button>
-              ))}
+
+            <div className="grid lg:grid-cols-2 divide-x divide-white/10 max-h-[70vh] overflow-auto">
+              {/* Left: Project Details */}
+              <div className="p-5 space-y-4">
+                <h4 className="text-white font-semibold text-sm uppercase tracking-widest opacity-60">Project Details</h4>
+
+                <div>
+                  <label className="block text-white/60 text-xs font-medium mb-1">Budget Amount (₹)</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 150000"
+                    value={assignModal.projectAmount}
+                    onChange={e => setAssignModal(prev => ({ ...prev, projectAmount: e.target.value }))}
+                    className="w-full bg-white/5 border border-white/10 text-white rounded-xl px-4 py-2.5 focus:outline-none focus:border-emerald-500 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-white/60 text-xs font-medium mb-1">Warranty Period (days after resolution)</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 365"
+                    value={assignModal.warrantyPeriod}
+                    onChange={e => setAssignModal(prev => ({ ...prev, warrantyPeriod: e.target.value }))}
+                    className="w-full bg-white/5 border border-white/10 text-white rounded-xl px-4 py-2.5 focus:outline-none focus:border-emerald-500 text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-white/60 text-xs font-medium mb-1">Project Deadline</label>
+                  <input
+                    type="date"
+                    value={assignModal.projectDeadline}
+                    onChange={e => setAssignModal(prev => ({ ...prev, projectDeadline: e.target.value }))}
+                    className="w-full bg-white/5 border border-white/10 text-white rounded-xl px-4 py-2.5 focus:outline-none focus:border-emerald-500 text-sm"
+                  />
+                  <p className="text-white/30 text-xs mt-1">Leave blank to use default SLA days</p>
+                </div>
+
+                <div>
+                  <label className="block text-white/60 text-xs font-medium mb-1">Project Description / Notes</label>
+                  <textarea
+                    rows={4}
+                    placeholder="Describe the scope of work..."
+                    value={assignModal.projectNote}
+                    onChange={e => setAssignModal(prev => ({ ...prev, projectNote: e.target.value }))}
+                    className="w-full bg-white/5 border border-white/10 text-white rounded-xl px-4 py-2.5 focus:outline-none focus:border-emerald-500 text-sm resize-none"
+                  />
+                </div>
+              </div>
+
+              {/* Right: Sub-Admin Selection */}
+              <div className="p-5 space-y-2">
+                <h4 className="text-white font-semibold text-sm uppercase tracking-widest opacity-60 mb-4">Select Sub-Admin</h4>
+                {subAdmins.length === 0 ? (
+                  <p className="text-center text-white/50 py-4">No Sub-Admins found. Promote a user first.</p>
+                ) : subAdmins.map(admin => (
+                  <button
+                    key={admin.id}
+                    onClick={() => handleAssign(admin.id)}
+                    className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-emerald-500/10 border border-transparent hover:border-emerald-500/30 rounded-xl transition-all text-left group"
+                  >
+                    <div>
+                      <div className="font-medium text-white group-hover:text-emerald-400 transition-colors">{admin.name}</div>
+                      <div className="text-xs text-white/50">{admin.phone}</div>
+                      <div className="text-xs text-white/30">{admin._count?.assignedComplaints ?? 0} active cases</div>
+                    </div>
+                    <CheckCircle className="w-5 h-5 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                ))}
+              </div>
             </div>
           </motion.div>
         </div>

@@ -18,11 +18,12 @@ model User {
   complaints         Complaint[]     @relation("UserComplaints")
   assignedComplaints Complaint[]     @relation("SubAdminComplaints")
   votes              ComplaintVote[]
-  otpRequests        OtpRequest[]
-  chatMessages       ChatMessage[]
-  slaConfigs         SlaConfig[]
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
+  otpRequests           OtpRequest[]
+  chatMessages          ChatMessage[]
+  slaConfigs            SlaConfig[]
+  extensionRequests     ExtensionRequest[] @relation("ExtensionRequests")
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
 }
 
 model Complaint {
@@ -54,11 +55,31 @@ model Complaint {
   slaDeadline        DateTime?
   slaBreached        Boolean         @default(false)
   slaBreach          SlaBreachAction @default(NONE)
+  // Project details (set by SuperAdmin at assignment)
+  projectAmount      Float?
+  warrantyPeriod     Int?
+  projectDeadline    DateTime?
+  projectNote        String?
+  extensionRequests  ExtensionRequest[]
   userId             Int
   user               User            @relation("UserComplaints", fields: [userId], references: [id])
   complaintVotes     ComplaintVote[]
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
+}
+
+model ExtensionRequest {
+  id            Int                    @id @default(autoincrement())
+  complaintId   Int
+  complaint     Complaint              @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  requestedById Int
+  requestedBy   User                   @relation("ExtensionRequests", fields: [requestedById], references: [id])
+  reason        String
+  requestedDays Int
+  status        ExtensionRequestStatus @default(PENDING)
+  reviewNote    String?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
 }
 
 model SlaConfig {
@@ -138,4 +159,10 @@ enum OtpPurpose {
 enum ChatMessageRole {
   USER
   ASSISTANT
+}
+
+enum ExtensionRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }

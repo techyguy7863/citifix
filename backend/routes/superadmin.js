@@ -53,10 +53,10 @@ router.patch("/users/:id/role", authMiddleware, superAdminMiddleware, async (req
   }
 });
 
-// Assign sub-admin to a complaint
+// Assign sub-admin to a complaint (with project details)
 router.post("/complaints/:id/assign", authMiddleware, superAdminMiddleware, async (req, res) => {
   try {
-    const { subAdminId } = req.body;
+    const { subAdminId, projectAmount, warrantyPeriod, projectDeadline, projectNote } = req.body;
     const complaintId = parseInt(req.params.id, 10);
 
     const subAdmin = await prisma.user.findUnique({ where: { id: subAdminId } });
@@ -69,11 +69,16 @@ router.post("/complaints/:id/assign", authMiddleware, superAdminMiddleware, asyn
       return res.status(404).json({ error: "Complaint not found" });
     }
 
-    // Determine SLA deadline
-    const config = await prisma.slaConfig.findUnique({ where: { department: complaint.category } });
-    const daysToResolve = config ? config.daysToResolve : 7;
-    const deadline = new Date();
-    deadline.setDate(deadline.getDate() + daysToResolve);
+    // Determine deadline: use projectDeadline if provided, else compute from SLA
+    let deadline;
+    if (projectDeadline) {
+      deadline = new Date(projectDeadline);
+    } else {
+      const config = await prisma.slaConfig.findUnique({ where: { department: complaint.category } });
+      const daysToResolve = config ? config.daysToResolve : 7;
+      deadline = new Date();
+      deadline.setDate(deadline.getDate() + daysToResolve);
+    }
 
     const updated = await prisma.complaint.update({
       where: { id: complaintId },
@@ -83,7 +88,11 @@ router.post("/complaints/:id/assign", authMiddleware, superAdminMiddleware, asyn
         slaDeadline: deadline,
         status: "ASSIGNED",
         slaBreached: false,
-        slaBreach: "NONE"
+        slaBreach: "NONE",
+        projectAmount: projectAmount ? parseFloat(projectAmount) : null,
+        warrantyPeriod: warrantyPeriod ? parseInt(warrantyPeriod, 10) : null,
+        projectDeadline: projectDeadline ? new Date(projectDeadline) : null,
+        projectNote: projectNote || null,
       },
       include: {
         assignedAdmin: { select: { id: true, name: true } },
@@ -156,6 +165,141 @@ router.put("/sla/:department", authMiddleware, superAdminMiddleware, async (req,
     });
 
     res.json(config);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+// Get all pending extension requests
+router.get("/extension-requests", authMiddleware, superAdminMiddleware, async (req, res) => {
+  try {
+    const requests = await prisma.extensionRequest.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        requestedBy: { select: { id: true, name: true, phone: true } },
+        complaint: {
+          select: {
+            id: true, title: true, category: true,
+            slaDeadline: true, projectDeadline: true,
+            assignedAdmin: { select: { name: true } }
+          }
+        }
+      }
+    });
+    res.json(requests);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Approve or reject an extension request
+router.patch("/extension-requests/:id", authMiddleware, superAdminMiddleware, async (req, res) => {
+  try {
+    const { status, reviewNote } = req.body;
+    const requestId = parseInt(req.params.id, 10);
+
+    if (!["APPROVED", "REJECTED"].includes(status)) {
+      return res.status(400).json({ error: "Status must be APPROVED or REJECTED" });
+    }
+
+    const extRequest = await prisma.extensionRequest.findUnique({
+      where: { id: requestId },
+      include: { complaint: true }
+    });
+
+    if (!extRequest) return res.status(404).json({ error: "Request not found" });
+    if (extRequest.status !== "PENDING") return res.status(400).json({ error: "Already reviewed" });
+
+    const updated = await prisma.extensionRequest.update({
+      where: { id: requestId },
+      data: { status, reviewNote: reviewNote || null }
+    });
+
+    // If approved, extend the SLA/project deadline on the complaint
+    if (status === "APPROVED") {
+      const complaint = extRequest.complaint;
+      const baseDate = complaint.projectDeadline || complaint.slaDeadline || new Date();
+      const newDeadline = new Date(baseDate);
+      newDeadline.setDate(newDeadline.getDate() + extRequest.requestedDays);
+
+      await prisma.complaint.update({
+        where: { id: complaint.id },
+        data: {
+          slaDeadline: newDeadline,
+          projectDeadline: complaint.projectDeadline ? newDeadline : undefined,
+          slaBreached: false,
+        }
+      });
+    }
+
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get superadmin analytics
+router.get("/analytics", authMiddleware, superAdminMiddleware, async (req, res) => {
+  try {
+    const totalComplaints = await prisma.complaint.count();
+    const breachedComplaints = await prisma.complaint.count({ where: { slaBreached: true } });
+    
+    const userRoleCounts = await prisma.user.groupBy({
+      by: ["role"],
+      _count: { id: true }
+    });
+
+    const subAdmins = await prisma.user.findMany({
+      where: { role: "SUBADMIN" },
+      select: {
+        id: true,
+        name: true,
+        assignedComplaints: {
+          select: {
+            status: true,
+            slaBreached: true,
+            assignedAt: true,
+            resolvedAt: true
+          }
+        }
+      }
+    });
+
+    const subAdminPerformance = subAdmins.map(admin => {
+      const assigned = admin.assignedComplaints;
+      const resolved = assigned.filter(c => c.status === "RESOLVED");
+      const breached = assigned.filter(c => c.slaBreached);
+      
+      let totalResolutionTime = 0;
+      let validResolutionCount = 0;
+
+      resolved.forEach(c => {
+        if (c.assignedAt && c.resolvedAt) {
+          totalResolutionTime += (new Date(c.resolvedAt) - new Date(c.assignedAt));
+          validResolutionCount++;
+        }
+      });
+
+      const avgResolutionTimeMs = validResolutionCount > 0 ? totalResolutionTime / validResolutionCount : null;
+      const avgResolutionTimeHours = avgResolutionTimeMs ? (avgResolutionTimeMs / (1000 * 60 * 60)).toFixed(1) : null;
+
+      return {
+        id: admin.id,
+        name: admin.name,
+        assignedCount: assigned.length,
+        resolvedCount: resolved.length,
+        breachedCount: breached.length,
+        avgResolutionHours: avgResolutionTimeHours
+      };
+    });
+
+    res.json({
+      system: {
+        totalComplaints,
+        breachedComplaints,
+        roles: userRoleCounts
+      },
+      subAdmins: subAdminPerformance
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -1,9 +1,11 @@
 import { motion } from "framer-motion";
 import { Button } from "./ui/button";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 export default function Hero()
 {
+    const navigate = useNavigate();
     return <div>
         <section className="relative pt-40 pb-20 px-4 md:pt-52 md:pb-32">
           <div className="container mx-auto max-w-7xl">
@@ -51,7 +53,7 @@ export default function Hero()
                 <Button
                   size="lg"
                   className="bg-gradient-to-r from-white/10 to-white/10 hover:from-white/80 hover:to-white/20 text-black text-lg px-10 py-6 shadow-2xl shadow-slate-500/30 "
-                  onClick={() => navigate("/register")}
+                  onClick={() => navigate("/login")}
                 >
                   Start Reporting Now
                   <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
@@ -60,7 +62,7 @@ export default function Hero()
                   size="lg"
                   variant="outline"
                   className="bg-white/40 text-slate-100 border-white/80 hover:bg-white/50 backdrop-blur-sm text-lg px-10 py-6"
-                  onClick={() => navigate("/community")}
+                  onClick={() => navigate("/login")}
                 >
                   Explore Issues
                 </Button>
@@ -68,10 +70,6 @@ export default function Hero()
 
       
               <div className="flex flex-wrap gap-6 justify-center items-center text-sm text-white/50">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-white/90" />
-                  <span>Aadhaar Verified</span>
-                </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5 text-white/90" />
                   <span>AI-Powered Analysis</span>

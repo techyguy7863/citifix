@@ -1,8 +1,11 @@
 import { ArrowRight } from "lucide-react";
 import { Button } from "./ui/button";
 import { motion } from 'framer-motion';
+import { useNavigate } from "react-router-dom";
+
 export default function CTA()
 {
+    const navigate = useNavigate();
     return <div>
 
         <section className="pb-24 px-4 relative overflow-hidden">
@@ -25,7 +28,7 @@ export default function CTA()
               <Button
                 size="lg" 
                 className="bg-gradient-to-r from-white/50 to-white/60 hover:from-white/70 hover:to-white/80 text-black text-lg md:px-12 px-6 py-3md:py-6 shadow-2xl shadow-slate-500/30 group"
-                onClick={() => navigate('/register')}
+                onClick={() => navigate('/login')}
               >
                 Join CITIFIX Today
                 <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />

@@ -39,6 +39,12 @@ const toClientComplaint = (complaint) => {
     } : null,
     createdAt: complaint.createdAt,
     updatedAt: complaint.updatedAt,
+    // Project details
+    projectAmount: complaint.projectAmount,
+    warrantyPeriod: complaint.warrantyPeriod,
+    projectDeadline: complaint.projectDeadline,
+    projectNote: complaint.projectNote,
+    extensionRequests: complaint.extensionRequests || [],
   };
 };
 
@@ -49,14 +55,70 @@ router.get("/complaints", authMiddleware, subAdminMiddleware, async (req, res) =
       where: { assignedAdminId: req.userId },
       include: {
         user: { select: { id: true, name: true, phone: true } },
+        extensionRequests: { orderBy: { createdAt: "desc" }, take: 1 },
       },
       orderBy: [
-        { slaDeadline: "asc" }, // Closest deadlines first
+        { slaDeadline: "asc" },
         { createdAt: "desc" }
       ],
     });
 
     res.json(complaints.map(c => toClientComplaint(c)));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Request time extension for an assigned complaint
+router.post("/complaints/:id/request-extension", authMiddleware, subAdminMiddleware, async (req, res) => {
+  try {
+    const { reason, requestedDays } = req.body;
+    const complaintId = parseInt(req.params.id, 10);
+
+    if (!reason || !requestedDays || requestedDays < 1) {
+      return res.status(400).json({ error: "Reason and requestedDays (min 1) are required" });
+    }
+
+    const complaint = await prisma.complaint.findUnique({ where: { id: complaintId } });
+    if (!complaint) return res.status(404).json({ error: "Complaint not found" });
+    if (complaint.assignedAdminId !== req.userId) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+
+    // Check no pending request already exists
+    const existing = await prisma.extensionRequest.findFirst({
+      where: { complaintId, status: "PENDING" }
+    });
+    if (existing) return res.status(400).json({ error: "A pending extension request already exists" });
+
+    const request = await prisma.extensionRequest.create({
+      data: {
+        complaintId,
+        requestedById: req.userId,
+        reason,
+        requestedDays: parseInt(requestedDays, 10),
+      }
+    });
+
+    res.json(request);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get extension requests for a complaint
+router.get("/complaints/:id/extension-requests", authMiddleware, subAdminMiddleware, async (req, res) => {
+  try {
+    const complaintId = parseInt(req.params.id, 10);
+    const complaint = await prisma.complaint.findUnique({ where: { id: complaintId } });
+    if (!complaint) return res.status(404).json({ error: "Complaint not found" });
+    if (complaint.assignedAdminId !== req.userId) return res.status(403).json({ error: "Not authorized" });
+
+    const requests = await prisma.extensionRequest.findMany({
+      where: { complaintId },
+      orderBy: { createdAt: "desc" }
+    });
+    res.json(requests);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

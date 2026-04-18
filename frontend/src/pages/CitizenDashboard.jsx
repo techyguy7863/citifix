@@ -21,7 +21,7 @@ import {
   Cell
 } from 'recharts';
 
-const COLORS = ['#ffffff', '#e5e5e5', '#cccccc', '#b3b3b3', '#999999', '#808080'];
+const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
 
 const CitizenDashboard = () => {
   const { user, logout } = useAuth();
@@ -188,7 +188,7 @@ const CitizenDashboard = () => {
                         <XAxis dataKey="name" stroke="rgba(255,255,255,0.6)" />
                         <YAxis stroke="rgba(255,255,255,0.6)" />
                         <Tooltip contentStyle={{ backgroundColor: '#111', border: '1px solid rgba(255,255,255,0.1)' }} />
-                        <Bar dataKey="count" fill="#ffffff" radius={[8, 8, 0, 0]} />
+                        <Bar dataKey="count" fill="#3b82f6" radius={[8, 8, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>

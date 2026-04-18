@@ -91,15 +91,20 @@ export const leaderboardApi = {
 export const superAdminApi = {
   users: () => request("/superadmin/users"),
   setRole: (userId, role) => request(`/superadmin/users/${userId}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
-  assignSubAdmin: (complaintId, subAdminId) => request(`/superadmin/complaints/${complaintId}/assign`, { method: "POST", body: JSON.stringify({ subAdminId }) }),
+  assignSubAdmin: (complaintId, data) => request(`/superadmin/complaints/${complaintId}/assign`, { method: "POST", body: JSON.stringify(data) }),
   unassign: (complaintId) => request(`/superadmin/complaints/${complaintId}/assign`, { method: "DELETE" }),
   getSlaConfigs: () => request("/superadmin/sla"),
   setSla: (department, days) => request(`/superadmin/sla/${department}`, { method: "PUT", body: JSON.stringify({ daysToResolve: days }) }),
+  getAnalytics: () => request("/superadmin/analytics"),
+  getExtensionRequests: () => request("/superadmin/extension-requests"),
+  reviewExtensionRequest: (id, data) => request(`/superadmin/extension-requests/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
 };
 
 export const subAdminApi = {
   myComplaints: () => request("/subadmin/complaints"),
   updateStatus: (complaintId, status) => request(`/subadmin/complaints/${complaintId}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
+  requestExtension: (complaintId, data) => request(`/subadmin/complaints/${complaintId}/request-extension`, { method: "POST", body: JSON.stringify(data) }),
+  getExtensionRequests: (complaintId) => request(`/subadmin/complaints/${complaintId}/extension-requests`),
 };
 
 export const chatApi = {
