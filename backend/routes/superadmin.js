@@ -305,4 +305,68 @@ router.get("/analytics", authMiddleware, superAdminMiddleware, async (req, res) 
   }
 });
 
+// ─────────────────────────── RAISED ISSUES ───────────────────────────
+
+// Get all raised issues
+router.get("/raised-issues", authMiddleware, superAdminMiddleware, async (req, res) => {
+  try {
+    const issues = await prisma.raisedIssue.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        raisedBy: { select: { id: true, name: true, phone: true } },
+        assignedTo: { select: { id: true, name: true, phone: true } },
+        complaint: {
+          select: {
+            id: true, title: true, category: true, address: true,
+            assignedAdmin: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+    res.json(issues);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Assign a SubAdmin to resolve a raised issue
+router.patch("/raised-issues/:id/assign", authMiddleware, superAdminMiddleware, async (req, res) => {
+  try {
+    const issueId = parseInt(req.params.id, 10);
+    const { subAdminId } = req.body;
+
+    if (!subAdminId) {
+      return res.status(400).json({ error: "subAdminId is required" });
+    }
+
+    const subAdmin = await prisma.user.findUnique({ where: { id: parseInt(subAdminId, 10) } });
+    if (!subAdmin || subAdmin.role !== "SUBADMIN") {
+      return res.status(400).json({ error: "Invalid sub-admin" });
+    }
+
+    const issue = await prisma.raisedIssue.findUnique({ where: { id: issueId } });
+    if (!issue) return res.status(404).json({ error: "Raised issue not found" });
+    if (issue.status === "RESOLVED") {
+      return res.status(400).json({ error: "Issue already resolved" });
+    }
+
+    const updated = await prisma.raisedIssue.update({
+      where: { id: issueId },
+      data: {
+        assignedToId: parseInt(subAdminId, 10),
+        status: "ASSIGNED",
+      },
+      include: {
+        raisedBy: { select: { id: true, name: true } },
+        assignedTo: { select: { id: true, name: true } },
+        complaint: { select: { id: true, title: true } },
+      },
+    });
+
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

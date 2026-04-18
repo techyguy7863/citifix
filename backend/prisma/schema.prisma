@@ -15,13 +15,15 @@ model User {
   phone              String          @unique
   role               Role            @default(CITIZEN)
   rewardPoints       Int             @default(0)
-  complaints         Complaint[]     @relation("UserComplaints")
-  assignedComplaints Complaint[]     @relation("SubAdminComplaints")
-  votes              ComplaintVote[]
+  complaints            Complaint[]        @relation("UserComplaints")
+  assignedComplaints    Complaint[]        @relation("SubAdminComplaints")
+  votes                 ComplaintVote[]
   otpRequests           OtpRequest[]
   chatMessages          ChatMessage[]
   slaConfigs            SlaConfig[]
   extensionRequests     ExtensionRequest[] @relation("ExtensionRequests")
+  raisedIssues          RaisedIssue[]      @relation("RaisedIssuesByUser")
+  assignedRaisedIssues  RaisedIssue[]      @relation("RaisedIssuesAssignedTo")
   createdAt             DateTime           @default(now())
   updatedAt             DateTime           @updatedAt
 }
@@ -61,6 +63,8 @@ model Complaint {
   projectDeadline    DateTime?
   projectNote        String?
   extensionRequests  ExtensionRequest[]
+  raisedIssues       RaisedIssue[]
+  isOnHold           Boolean         @default(false)
   userId             Int
   user               User            @relation("UserComplaints", fields: [userId], references: [id])
   complaintVotes     ComplaintVote[]
@@ -165,4 +169,25 @@ enum ExtensionRequestStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum RaisedIssueStatus {
+  PENDING
+  ASSIGNED
+  RESOLVED
+}
+
+model RaisedIssue {
+  id           Int               @id @default(autoincrement())
+  complaintId  Int
+  complaint    Complaint         @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+  raisedById   Int
+  raisedBy     User              @relation("RaisedIssuesByUser", fields: [raisedById], references: [id])
+  assignedToId Int?
+  assignedTo   User?             @relation("RaisedIssuesAssignedTo", fields: [assignedToId], references: [id])
+  title        String
+  description  String
+  status       RaisedIssueStatus @default(PENDING)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
 }

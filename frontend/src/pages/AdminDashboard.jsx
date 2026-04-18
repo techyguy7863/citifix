@@ -12,7 +12,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { useToast } from '@/components/ui/use-toast';
-import { Search, Filter, Clock, CheckCircle, BarChart, ThumbsUp, User, MapPin, Tag, Shield, Layers } from 'lucide-react';
+import { Search, Filter, Clock, CheckCircle, BarChart, ThumbsUp, User, MapPin, Tag, Shield, Layers, AlertCircle } from 'lucide-react';
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -133,23 +133,23 @@ const AdminDashboard = () => {
     }
   };
 
+  const STATUS_CONFIG = {
+    open:      { label: 'OPEN',      color: 'bg-blue-500/25 text-blue-300 border-blue-500/40',       Icon: Clock },
+    assigned:  { label: 'ASSIGNED',  color: 'bg-amber-500/25 text-amber-300 border-amber-500/40',    Icon: AlertCircle },
+    resolved:  { label: 'RESOLVED',  color: 'bg-emerald-500/25 text-emerald-300 border-emerald-500/40', Icon: CheckCircle },
+    escalated: { label: 'ESCALATED', color: 'bg-rose-500/25 text-rose-300 border-rose-500/40',       Icon: AlertCircle },
+  };
+
   const getStatusChip = (status) => {
-    switch(status) {
-        case 'open': 
-          return <span className="bg-white/10 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 border border-white/20">
-            <Clock className="w-3 h-3"/> Open
-          </span>
-        case 'assigned': 
-          return <span className="bg-white/15 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 border border-white/30">
-            <BarChart className="w-3 h-3"/> Assigned
-          </span>
-        case 'resolved': 
-          return <span className="bg-white/20 text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 border border-white/40">
-            <CheckCircle className="w-3 h-3"/> Resolved
-          </span>
-        default: return null;
-    }
-  }
+    const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.open;
+    const { label, color, Icon } = cfg;
+    return (
+      <span className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border backdrop-blur-sm ${color}`}>
+        <Icon className="w-3 h-3" />
+        {label}
+      </span>
+    );
+  };
 
   return (
     <>

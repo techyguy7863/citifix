@@ -45,6 +45,9 @@ const toClientComplaint = (complaint) => {
     projectDeadline: complaint.projectDeadline,
     projectNote: complaint.projectNote,
     extensionRequests: complaint.extensionRequests || [],
+    // Raised Issue fields
+    isOnHold: complaint.isOnHold || false,
+    raisedIssues: complaint.raisedIssues || [],
   };
 };
 
@@ -56,6 +59,13 @@ router.get("/complaints", authMiddleware, subAdminMiddleware, async (req, res) =
       include: {
         user: { select: { id: true, name: true, phone: true } },
         extensionRequests: { orderBy: { createdAt: "desc" }, take: 1 },
+        raisedIssues: {
+          orderBy: { createdAt: "desc" },
+          include: {
+            raisedBy: { select: { id: true, name: true } },
+            assignedTo: { select: { id: true, name: true } },
+          },
+        },
       },
       orderBy: [
         { slaDeadline: "asc" },
@@ -145,6 +155,10 @@ router.patch("/complaints/:id/status", authMiddleware, subAdminMiddleware, async
       return res.status(403).json({ error: "Not authorized to update this complaint" });
     }
 
+    if (previous.isOnHold) {
+      return res.status(400).json({ error: "Cannot update status while complaint is on hold due to a raised issue" });
+    }
+
     const complaint = await prisma.complaint.update({
       where: { id: complaintId },
       data: {
@@ -166,6 +180,115 @@ router.patch("/complaints/:id/status", authMiddleware, subAdminMiddleware, async
     }
 
     res.json(toClientComplaint(complaint));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ─────────────────────────── RAISED ISSUES ───────────────────────────
+
+// SubAdmin raises an issue on one of their assigned complaints
+router.post("/complaints/:id/raise-issue", authMiddleware, subAdminMiddleware, async (req, res) => {
+  try {
+    const complaintId = parseInt(req.params.id, 10);
+    const { title, description } = req.body;
+
+    if (!title?.trim() || !description?.trim()) {
+      return res.status(400).json({ error: "Title and description are required" });
+    }
+
+    const complaint = await prisma.complaint.findUnique({ where: { id: complaintId } });
+    if (!complaint) return res.status(404).json({ error: "Complaint not found" });
+    if (complaint.assignedAdminId !== req.userId) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    if (complaint.isOnHold) {
+      return res.status(400).json({ error: "A raised issue is already pending for this complaint" });
+    }
+
+    // Create the raised issue and put the complaint on hold in a transaction
+    const raisedIssue = await prisma.$transaction(async (tx) => {
+      const issue = await tx.raisedIssue.create({
+        data: {
+          complaintId,
+          raisedById: req.userId,
+          title: title.trim(),
+          description: description.trim(),
+        },
+      });
+      await tx.complaint.update({
+        where: { id: complaintId },
+        data: { isOnHold: true },
+      });
+      return issue;
+    });
+
+    res.json(raisedIssue);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// SubAdmin gets raised issues assigned TO them (for resolution)
+router.get("/raised-issues", authMiddleware, subAdminMiddleware, async (req, res) => {
+  try {
+    const issues = await prisma.raisedIssue.findMany({
+      where: { assignedToId: req.userId, status: { not: "RESOLVED" } },
+      include: {
+        complaint: {
+          select: {
+            id: true, title: true, category: true, address: true, imageUrl: true,
+            projectAmount: true, projectNote: true,
+          },
+        },
+        raisedBy: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    res.json(issues);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// SubAdmin resolves a raised issue assigned to them
+router.patch("/raised-issues/:id/resolve", authMiddleware, subAdminMiddleware, async (req, res) => {
+  try {
+    const issueId = parseInt(req.params.id, 10);
+
+    const issue = await prisma.raisedIssue.findUnique({
+      where: { id: issueId },
+      include: { complaint: true },
+    });
+
+    if (!issue) return res.status(404).json({ error: "Raised issue not found" });
+    if (issue.assignedToId !== req.userId) {
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    if (issue.status === "RESOLVED") {
+      return res.status(400).json({ error: "Already resolved" });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Mark the raised issue as resolved
+      await tx.raisedIssue.update({
+        where: { id: issueId },
+        data: { status: "RESOLVED" },
+      });
+      // Check if ALL raised issues on the parent complaint are now resolved
+      const pending = await tx.raisedIssue.count({
+        where: { complaintId: issue.complaintId, status: { not: "RESOLVED" } },
+      });
+      // If none pending, release the hold on the original complaint
+      if (pending === 0) {
+        await tx.complaint.update({
+          where: { id: issue.complaintId },
+          data: { isOnHold: false },
+        });
+      }
+    });
+
+    res.json({ message: "Raised issue resolved successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

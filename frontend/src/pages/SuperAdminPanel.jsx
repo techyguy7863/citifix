@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { superAdminApi, adminApi } from "@/lib/api";
 import { motion } from "framer-motion";
-import { Users, ClipboardList, Clock, Search, Shield, ShieldOff, AlertTriangle, CheckCircle, UserPlus, X, BarChart2 } from "lucide-react";
+import { Users, ClipboardList, Clock, Search, Shield, ShieldOff, AlertTriangle, CheckCircle, UserPlus, X, BarChart2, AlertOctagon } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -51,6 +51,9 @@ const SuperAdminPanel = () => {
     projectAmount: "", warrantyPeriod: "", projectDeadline: "", projectNote: ""
   });
   const [extensionRequests, setExtensionRequests] = useState([]);
+  const [raisedIssues, setRaisedIssues] = useState([]);
+  const [raisedIssueAssignModal, setRaisedIssueAssignModal] = useState({ isOpen: false, issueId: null, issueTitle: "" });
+  const [assigningRaisedIssue, setAssigningRaisedIssue] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -59,17 +62,19 @@ const SuperAdminPanel = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [usersData, complaintsData, slaData, analyticsData, extRequestsData] = await Promise.all([
+      const [usersData, complaintsData, slaData, analyticsData, extRequestsData, raisedIssuesData] = await Promise.all([
         superAdminApi.users(),
         adminApi.complaints(),
         superAdminApi.getSlaConfigs(),
         superAdminApi.getAnalytics(),
-        superAdminApi.getExtensionRequests()
+        superAdminApi.getExtensionRequests(),
+        superAdminApi.getRaisedIssues(),
       ]);
       setUsers(usersData);
       setComplaints(complaintsData.complaints || []);
       setAnalytics(analyticsData);
       setExtensionRequests(extRequestsData);
+      setRaisedIssues(raisedIssuesData);
       
       // Merge SLA configs with defaults
       const mergedSlas = DEPARTMENTS.map(dept => {
@@ -212,6 +217,19 @@ const SuperAdminPanel = () => {
           {extensionRequests.filter(r => r.status === "PENDING").length > 0 && (
             <span className="bg-rose-500 text-white text-xs font-bold rounded-full px-2 py-0.5 ml-1">
               {extensionRequests.filter(r => r.status === "PENDING").length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab("raised")}
+          className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all whitespace-nowrap ${
+            activeTab === "raised" ? "bg-white text-black" : "bg-white/10 text-white hover:bg-white/20"
+          }`}
+        >
+          <AlertOctagon className="w-5 h-5" /> Raised Issues
+          {raisedIssues.filter(r => r.status === "PENDING").length > 0 && (
+            <span className="bg-amber-500 text-white text-xs font-bold rounded-full px-2 py-0.5 ml-1">
+              {raisedIssues.filter(r => r.status === "PENDING").length}
             </span>
           )}
         </button>
@@ -570,6 +588,118 @@ const SuperAdminPanel = () => {
             </motion.div>
           )}
 
+          {/* TAB 6: RAISED ISSUES */}
+          {activeTab === "raised" && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-semibold text-white">Raised Issues</h2>
+                <span className="text-white/40 text-sm">{raisedIssues.length} total · {raisedIssues.filter(r => r.status === "PENDING").length} pending</span>
+              </div>
+
+              {raisedIssues.length === 0 ? (
+                <div className="text-center py-16 text-white/30 italic">No raised issues yet.</div>
+              ) : raisedIssues.map(issue => (
+                <div key={issue.id} className={`bg-white/5 border rounded-2xl p-5 transition-all ${
+                  issue.status === "PENDING" ? "border-amber-500/30 hover:border-amber-500/50" :
+                  issue.status === "ASSIGNED" ? "border-blue-500/30" :
+                  "border-emerald-500/20 opacity-60"
+                }`}>
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="space-y-1 flex-1">
+                      <div className="flex items-center gap-2">
+                        <AlertOctagon className={`w-4 h-4 ${
+                          issue.status === "PENDING" ? "text-amber-400" :
+                          issue.status === "ASSIGNED" ? "text-blue-400" : "text-emerald-400"
+                        }`} />
+                        <p className="text-white font-semibold">{issue.title}</p>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-bold border ${
+                          issue.status === "PENDING" ? "bg-amber-500/10 text-amber-400 border-amber-500/30" :
+                          issue.status === "ASSIGNED" ? "bg-blue-500/10 text-blue-400 border-blue-500/30" :
+                          "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                        }`}>{issue.status}</span>
+                      </div>
+                      <p className="text-white/60 text-sm">{issue.description}</p>
+                      <p className="text-white/40 text-xs">
+                        Project: <span className="text-white/60">#{issue.complaint?.id} · {issue.complaint?.title}</span>
+                        {" · "} Raised by: <span className="text-white/60">{issue.raisedBy?.name}</span>
+                        {issue.assignedTo && <> · Assigned to: <span className="text-blue-400">{issue.assignedTo?.name}</span></>}
+                      </p>
+                    </div>
+
+                    <div>
+                      {issue.status === "PENDING" && (
+                        <button
+                          onClick={() => setRaisedIssueAssignModal({ isOpen: true, issueId: issue.id, issueTitle: issue.title })}
+                          className="px-4 py-2 bg-blue-500/20 hover:bg-blue-500/40 text-blue-400 border border-blue-500/30 rounded-xl text-sm font-medium transition-all whitespace-nowrap"
+                        >
+                          Assign SubAdmin
+                        </button>
+                      )}
+                      {issue.status === "RESOLVED" && (
+                        <span className="px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-xl text-sm font-bold">✓ RESOLVED</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </motion.div>
+          )}
+
+        </div>
+      )}
+
+      {/* Raised Issue Assign SubAdmin Modal */}
+      {raisedIssueAssignModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-[#111] border border-amber-500/20 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
+          >
+            <div className="flex justify-between items-center p-5 border-b border-white/10">
+              <div>
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <AlertOctagon className="w-5 h-5 text-amber-400" /> Assign SubAdmin to Fix Issue
+                </h3>
+                <p className="text-white/40 text-sm mt-0.5">{raisedIssueAssignModal.issueTitle}</p>
+              </div>
+              <button onClick={() => setRaisedIssueAssignModal({ isOpen: false, issueId: null, issueTitle: "" })} className="text-white/50 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-2 max-h-80 overflow-auto">
+              <p className="text-white/50 text-xs font-semibold uppercase tracking-wider mb-3">Select a SubAdmin to resolve this issue</p>
+              {subAdmins.length === 0 ? (
+                <p className="text-center text-white/50 py-4">No Sub-Admins found.</p>
+              ) : subAdmins.map(admin => (
+                <button
+                  key={admin.id}
+                  disabled={assigningRaisedIssue}
+                  onClick={async () => {
+                    setAssigningRaisedIssue(true);
+                    try {
+                      await superAdminApi.assignRaisedIssue(raisedIssueAssignModal.issueId, admin.id);
+                      toast({ title: "SubAdmin assigned ✅", description: `${admin.name} will now fix the raised issue.` });
+                      setRaisedIssueAssignModal({ isOpen: false, issueId: null, issueTitle: "" });
+                      fetchData();
+                    } catch (err) {
+                      toast({ title: "Failed to assign", description: err.message, variant: "destructive" });
+                    } finally {
+                      setAssigningRaisedIssue(false);
+                    }
+                  }}
+                  className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-amber-500/10 border border-transparent hover:border-amber-500/30 rounded-xl transition-all text-left group disabled:opacity-50"
+                >
+                  <div>
+                    <div className="font-medium text-white group-hover:text-amber-400 transition-colors">{admin.name}</div>
+                    <div className="text-xs text-white/50">{admin.phone}</div>
+                    <div className="text-xs text-white/30">{admin._count?.assignedComplaints ?? 0} active cases</div>
+                  </div>
+                  <CheckCircle className="w-5 h-5 text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </button>
+              ))}
+            </div>
+          </motion.div>
         </div>
       )}
 

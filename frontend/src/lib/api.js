@@ -98,6 +98,8 @@ export const superAdminApi = {
   getAnalytics: () => request("/superadmin/analytics"),
   getExtensionRequests: () => request("/superadmin/extension-requests"),
   reviewExtensionRequest: (id, data) => request(`/superadmin/extension-requests/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  getRaisedIssues: () => request("/superadmin/raised-issues"),
+  assignRaisedIssue: (id, subAdminId) => request(`/superadmin/raised-issues/${id}/assign`, { method: "PATCH", body: JSON.stringify({ subAdminId }) }),
 };
 
 export const subAdminApi = {
@@ -105,6 +107,9 @@ export const subAdminApi = {
   updateStatus: (complaintId, status) => request(`/subadmin/complaints/${complaintId}/status`, { method: "PATCH", body: JSON.stringify({ status }) }),
   requestExtension: (complaintId, data) => request(`/subadmin/complaints/${complaintId}/request-extension`, { method: "POST", body: JSON.stringify(data) }),
   getExtensionRequests: (complaintId) => request(`/subadmin/complaints/${complaintId}/extension-requests`),
+  raiseIssue: (complaintId, data) => request(`/subadmin/complaints/${complaintId}/raise-issue`, { method: "POST", body: JSON.stringify(data) }),
+  getAssignedRaisedIssues: () => request("/subadmin/raised-issues"),
+  resolveRaisedIssue: (id) => request(`/subadmin/raised-issues/${id}/resolve`, { method: "PATCH" }),
 };
 
 export const chatApi = {
