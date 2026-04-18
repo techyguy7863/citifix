@@ -118,7 +118,7 @@ const LoginPage = () => {
     className="relative z-10 w-full max-w-md"
   >
     <div className="relative bg-gradient-to-r from-white/20 to-white/30 rounded-3xl shadow-[0_30px_80px_-30px_rgba(255,255,255,0.25)] 
-      p-8 border border-black/10">
+      p-6 sm:p-8 border border-black/10">
       
       <button 
         onClick={() => navigate('/')}
@@ -136,10 +136,10 @@ const LoginPage = () => {
       </div>
 
 
-      <h2 className="text-3xl font-bold text-white text-center mb-2">
+      <h2 className="text-2xl sm:text-3xl font-bold text-white text-center mb-2">
         Welcome Back
       </h2>
-      <p className="text-gray-300 text-center mb-8">
+      <p className="text-sm sm:text-base text-gray-300 text-center mb-6 sm:mb-8">
         Login using mobile OTP
       </p>
 

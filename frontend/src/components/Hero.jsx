@@ -32,7 +32,7 @@ export default function Hero()
               </motion.div>
 
 
-              <h1 className="text-5xl md:text-6xl mb-6 leading-tight">
+              <h1 className="text-4xl sm:text-5xl md:text-6xl mb-6 leading-tight">
                 <span className="bg-gradient-to-r from-white/90 via-white/80 to-white/70 bg-clip-text text-transparent">
                   Transform Your City,
                 </span>
@@ -42,17 +42,17 @@ export default function Hero()
                 </span>
               </h1>
 
-              <p className="text-lg text-white/50 mb-10 max-w-3xl mx-auto leading-relaxed">
+              <p className="text-base sm:text-lg text-white/50 mb-10 max-w-3xl mx-auto leading-relaxed">
                 Empower your voice with AI-driven civic engagement. Report
                 issues instantly, track real-time resolutions, and earn rewards
                 for building a better tomorrow.
               </p>
 
   
-              <div className="flex gap-4 justify-center flex-wrap mb-12">
+              <div className="flex flex-col sm:flex-row gap-4 justify-center items-center flex-wrap mb-12 w-full max-w-md sm:max-w-none mx-auto">
                 <Button
                   size="lg"
-                  className="bg-gradient-to-r from-white/10 to-white/10 hover:from-white/80 hover:to-white/20 text-black text-lg px-10 py-6 shadow-2xl shadow-slate-500/30 "
+                  className="w-full sm:w-auto bg-gradient-to-r from-white/10 to-white/10 hover:from-white/80 hover:to-white/20 text-black text-base sm:text-lg px-8 sm:px-10 py-6 shadow-2xl shadow-slate-500/30 "
                   onClick={() => navigate("/login")}
                 >
                   Start Reporting Now
@@ -61,7 +61,7 @@ export default function Hero()
                 <Button
                   size="lg"
                   variant="outline"
-                  className="bg-white/40 text-slate-100 border-white/80 hover:bg-white/50 backdrop-blur-sm text-lg px-10 py-6"
+                  className="w-full sm:w-auto bg-white/40 text-slate-100 border-white/80 hover:bg-white/50 backdrop-blur-sm text-base sm:text-lg px-8 sm:px-10 py-6"
                   onClick={() => navigate("/login")}
                 >
                   Explore Issues

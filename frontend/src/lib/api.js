@@ -113,4 +113,9 @@ export const chatApi = {
       method: "POST",
       body: JSON.stringify({ message, history }),
     }),
+  generateDescription: (title) =>
+    request("/chat/generate-description", {
+      method: "POST",
+      body: JSON.stringify({ title }),
+    }),
 };

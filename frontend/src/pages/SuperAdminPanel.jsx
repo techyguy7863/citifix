@@ -591,7 +591,7 @@ const SuperAdminPanel = () => {
               </button>
             </div>
 
-            <div className="grid lg:grid-cols-2 divide-x divide-white/10 max-h-[70vh] overflow-auto">
+            <div className="grid lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-white/10 max-h-[70vh] overflow-auto">
               {/* Left: Project Details */}
               <div className="p-5 space-y-4">
                 <h4 className="text-white font-semibold text-sm uppercase tracking-widest opacity-60">Project Details</h4>

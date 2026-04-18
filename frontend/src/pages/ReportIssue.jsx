@@ -5,13 +5,13 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext.jsx';
 import { categorizeIssue } from '@/utils/aiCategorization.js';
 import { getCurrentLocation, reverseGeocode } from '@/utils/location.js';
-import { complaintsApi } from '@/lib/api.js';
+import { complaintsApi, chatApi } from '@/lib/api.js';
 import DashboardLayout from '@/components/DashboardLayout.jsx';
 import { Button } from '@/components/ui/button.jsx';
 import { Input } from '@/components/ui/input.jsx';
 import { Label } from '@/components/ui/label.jsx';
 import { useToast } from '@/components/ui/use-toast.js';
-import { MapPin, Upload, Loader2, ArrowLeft } from 'lucide-react';
+import { MapPin, Upload, Loader2, ArrowLeft, Sparkles } from 'lucide-react';
 
 const ReportIssue = () => {
     const { user } = useAuth();
@@ -23,6 +23,26 @@ const ReportIssue = () => {
     const [locationAddress, setLocationAddress] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isFetchingLocation, setIsFetchingLocation] = useState(false);
+    const [isGeneratingDesc, setIsGeneratingDesc] = useState(false);
+
+    const handleGenerateDescription = async () => {
+        if (!formData.title.trim()) {
+            toast({ title: "Title is required", description: "Please enter a title first to generate a description.", variant: 'destructive' });
+            return;
+        }
+        setIsGeneratingDesc(true);
+        try {
+            const res = await chatApi.generateDescription(formData.title);
+            if (res.description) {
+                setFormData(prev => ({ ...prev, description: res.description }));
+                toast({ title: "Description generated!" });
+            }
+        } catch (error) {
+            toast({ title: "Failed to generate description", description: error.message || "Please try again.", variant: 'destructive' });
+        } finally {
+            setIsGeneratingDesc(false);
+        }
+    };
 
     const handleLocation = async () => {
         setIsFetchingLocation(true);
@@ -123,14 +143,27 @@ const ReportIssue = () => {
                     <h1 className="text-3xl font-bold">Report a New Issue</h1>
                 </div>
 
-                <form onSubmit={handleSubmit} className="bg-slate-800 p-8 rounded-xl shadow-lg space-y-6 max-w-2xl mx-auto border border-slate-700">
+                <form onSubmit={handleSubmit} className="bg-slate-800 p-6 sm:p-8 rounded-xl shadow-lg space-y-6 max-w-2xl mx-auto border border-slate-700">
                     <div>
                         <Label htmlFor="title" className="text-slate-100">Title</Label>
                         <Input id="title" placeholder="e.g., Large pothole on Main Street" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} required className="bg-slate-700 text-slate-100 border-slate-600 placeholder:text-slate-400" />
                     </div>
                     <div>
-                        <Label htmlFor="description" className="text-slate-100">Description</Label>
-                        <textarea id="description" rows="4" className="w-full rounded-md border border-slate-600 p-2 bg-slate-700 text-slate-100 placeholder:text-slate-400" placeholder="Provide more details about the issue" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} required></textarea>
+                        <div className="flex items-center justify-between mb-2">
+                            <Label htmlFor="description" className="text-slate-100">Description</Label>
+                            <Button 
+                                type="button" 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={handleGenerateDescription} 
+                                disabled={isGeneratingDesc || !formData.title.trim()}
+                                className="h-7 text-xs bg-gradient-to-r from-indigo-500/20 to-purple-500/20 text-indigo-300 border-indigo-500/30 hover:bg-indigo-500/30"
+                            >
+                                {isGeneratingDesc ? <Loader2 className="animate-spin w-3 h-3 mr-1"/> : <Sparkles className="w-3 h-3 mr-1 text-amber-400"/>}
+                                ✨ Generate with AI
+                            </Button>
+                        </div>
+                        <textarea id="description" rows="5" className="w-full rounded-md border border-slate-600 p-3 bg-slate-700 text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50" placeholder="Provide more details about the issue..." value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} required></textarea>
                     </div>
 
                     <div>

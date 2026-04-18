@@ -229,7 +229,7 @@ const AdminAnalytics = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {stats.map((stat, index) => (
               <motion.div
                 key={index}
@@ -337,7 +337,7 @@ const AdminAnalytics = () => {
               <h3 className="font-bold text-xl text-white mb-6 uppercase tracking-widest text-xs opacity-50">Compliance Monitor</h3>
               <h4 className="font-bold text-2xl text-white mb-6">SLA Performance Breakdown</h4>
 
-              <div className="grid grid-cols-2 items-center">
+              <div className="flex flex-col sm:flex-row items-center gap-6">
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
                     <Pie
