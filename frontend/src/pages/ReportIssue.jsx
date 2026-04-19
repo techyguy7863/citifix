@@ -47,7 +47,6 @@ const ReportIssue = () => {
     const [locationMismatch, setLocationMismatch] = useState(false); // true if distance > threshold
     const [mismatchDistKm, setMismatchDistKm] = useState(null);
     const [noExifGps, setNoExifGps] = useState(false);     // photo has no embedded GPS
-    const [overrideMismatch, setOverrideMismatch] = useState(false); // user manually confirmed
 
     const handleGenerateDescription = async () => {
         if (!formData.title.trim()) {
@@ -95,7 +94,6 @@ const ReportIssue = () => {
         );
         setMismatchDistKm(dist.toFixed(2));
         setLocationMismatch(dist > THRESHOLD_KM);
-        setOverrideMismatch(false); // reset confirmation on re-check
     };
 
     const compressImage = (file) => {
@@ -133,7 +131,6 @@ const ReportIssue = () => {
         setLocationMismatch(false);
         setMismatchDistKm(null);
         setNoExifGps(false);
-        setOverrideMismatch(false);
 
         // Compress for preview/upload
         const compressed = await compressImage(file);
@@ -167,7 +164,6 @@ const ReportIssue = () => {
         if (!exifGps) return 'loading'; // still parsing EXIF
         if (!location) return 'need_location'; // photo has GPS but we haven't captured live GPS yet
         if (!locationMismatch) return 'match';
-        if (locationMismatch && overrideMismatch) return 'override';
         if (locationMismatch) return 'mismatch';
         return null;
     };
@@ -179,11 +175,11 @@ const ReportIssue = () => {
             return;
         }
 
-        // Block if mismatch and user hasn't confirmed override
-        if (locationMismatch && !overrideMismatch) {
+        // Block if mismatch
+        if (locationMismatch) {
             toast({
                 title: 'Location mismatch',
-                description: 'Please confirm the photo was taken at the reported location.',
+                description: 'You cannot submit this report because the photo location does not match your live location.',
                 variant: 'destructive',
             });
             return;
@@ -324,7 +320,6 @@ const ReportIssue = () => {
                         <div className={`rounded-xl border p-4 space-y-2 ${
                             vStatus === 'loading'        ? 'bg-slate-700/50  border-slate-600'     :
                             vStatus === 'match'          ? 'bg-emerald-500/10 border-emerald-500/30' :
-                            vStatus === 'override'       ? 'bg-amber-500/10  border-amber-500/30'  :
                             vStatus === 'mismatch'       ? 'bg-rose-500/10   border-rose-500/30'   :
                             vStatus === 'no_exif'        ? 'bg-blue-500/10   border-blue-500/30'   :
                             /* need_location */            'bg-slate-700/50   border-slate-600'
@@ -355,32 +350,17 @@ const ReportIssue = () => {
                             )}
 
                             {/* MISMATCH */}
-                            {(vStatus === 'mismatch' || vStatus === 'override') && exifGps && (
-                                <>
-                                    <div className="flex items-start gap-2 text-amber-400">
-                                        <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                                        <div>
-                                            <p className="text-sm font-bold">
-                                                {vStatus === 'override' ? 'Location Mismatch — Manually Confirmed' : 'Location Mismatch Detected'}
-                                            </p>
-                                            <p className="text-xs text-amber-300/70">
-                                                Your photo's GPS ({exifGps.latitude.toFixed(4)}, {exifGps.longitude.toFixed(4)}) is <strong>{mismatchDistKm} km</strong> away from your current location.
-                                                This could mean the photo was not taken at the reported spot.
-                                            </p>
-                                        </div>
+                            {vStatus === 'mismatch' && exifGps && (
+                                <div className="flex items-start gap-2 text-rose-400">
+                                    <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                                    <div>
+                                        <p className="text-sm font-bold">Location Mismatch Detected</p>
+                                        <p className="text-xs text-rose-300/70">
+                                            Your photo's GPS ({exifGps.latitude.toFixed(4)}, {exifGps.longitude.toFixed(4)}) is <strong>{mismatchDistKm} km</strong> away from your current location.
+                                            You must report issues from the actual location.
+                                        </p>
                                     </div>
-                                    <label className="flex items-start gap-3 cursor-pointer mt-2 p-3 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
-                                        <input
-                                            type="checkbox"
-                                            className="mt-0.5 accent-amber-400 w-4 h-4 flex-shrink-0"
-                                            checked={overrideMismatch}
-                                            onChange={e => setOverrideMismatch(e.target.checked)}
-                                        />
-                                        <span className="text-xs text-slate-300">
-                                            I confirm this photo was taken at the reported location and I take responsibility for the accuracy of this report.
-                                        </span>
-                                    </label>
-                                </>
+                                </div>
                             )}
 
                             {/* NO EXIF GPS */}
@@ -417,12 +397,12 @@ const ReportIssue = () => {
                     <Button
                         type="submit"
                         className="w-full gradient-saffron text-white"
-                        disabled={isSubmitting || (locationMismatch && !overrideMismatch)}
+                        disabled={isSubmitting || locationMismatch}
                     >
                         {isSubmitting
                             ? <><Loader2 className="animate-spin w-4 h-4 mr-2" /> Submitting...</>
-                            : locationMismatch && !overrideMismatch
-                            ? '⚠️ Confirm Location Mismatch First'
+                            : locationMismatch
+                            ? '⚠️ Location Mismatch (Cannot Submit)'
                             : <><CheckCircle2 className="w-4 h-4 mr-2" /> Submit Report</>
                         }
                     </Button>
