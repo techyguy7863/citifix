@@ -90,7 +90,7 @@ export const leaderboardApi = {
 
 export const superAdminApi = {
   users: () => request("/superadmin/users"),
-  setRole: (userId, role) => request(`/superadmin/users/${userId}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
+  setRole: (userId, role, department) => request(`/superadmin/users/${userId}/role`, { method: "PATCH", body: JSON.stringify({ role, department }) }),
   assignSubAdmin: (complaintId, data) => request(`/superadmin/complaints/${complaintId}/assign`, { method: "POST", body: JSON.stringify(data) }),
   unassign: (complaintId) => request(`/superadmin/complaints/${complaintId}/assign`, { method: "DELETE" }),
   getSlaConfigs: () => request("/superadmin/sla"),

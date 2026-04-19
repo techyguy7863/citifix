@@ -54,6 +54,8 @@ const SuperAdminPanel = () => {
   const [raisedIssues, setRaisedIssues] = useState([]);
   const [raisedIssueAssignModal, setRaisedIssueAssignModal] = useState({ isOpen: false, issueId: null, issueTitle: "" });
   const [assigningRaisedIssue, setAssigningRaisedIssue] = useState(false);
+  // Department-selection modal state (shown when promoting a user to SUBADMIN)
+  const [deptModal, setDeptModal] = useState({ isOpen: false, userId: null, userName: "" });
 
   useEffect(() => {
     fetchData();
@@ -91,13 +93,32 @@ const SuperAdminPanel = () => {
 
   // --- Handlers ---
 
-  const handleRoleChange = async (userId, newRole) => {
+  const handleRoleChange = async (userId, newRole, userName) => {
+    // If promoting to SUBADMIN, show department selection modal first
+    if (newRole === "SUBADMIN") {
+      setDeptModal({ isOpen: true, userId, userName: userName || "this user" });
+      return;
+    }
+    // For any other role (CITIZEN), apply directly
     try {
-      await superAdminApi.setRole(userId, newRole);
-      setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
+      await superAdminApi.setRole(userId, newRole, null);
+      setUsers(users.map(u => u.id === userId ? { ...u, role: newRole, department: null } : u));
       toast({ title: "Role updated successfully" });
     } catch (err) {
       toast({ title: "Failed to update role", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleSubAdminWithDept = async (department) => {
+    const { userId } = deptModal;
+    try {
+      await superAdminApi.setRole(userId, "SUBADMIN", department);
+      setUsers(users.map(u => u.id === userId ? { ...u, role: "SUBADMIN", department } : u));
+      toast({ title: `SubAdmin assigned to ${department} ✅` });
+    } catch (err) {
+      toast({ title: "Failed to update role", description: err.message, variant: "destructive" });
+    } finally {
+      setDeptModal({ isOpen: false, userId: null, userName: "" });
     }
   };
 
@@ -165,6 +186,19 @@ const SuperAdminPanel = () => {
   );
 
   const subAdmins = users.filter(u => u.role === "SUBADMIN");
+
+  // In assign modal: only show subAdmins from the same department as the complaint being assigned
+  const getComplaintDept = () => {
+    if (!assignModal.complaintId) return null;
+    const c = complaints.find(c => c.id === assignModal.complaintId);
+    return c?.category || null;
+  };
+
+  const filteredSubAdminsForAssign = () => {
+    const dept = getComplaintDept();
+    if (!dept) return subAdmins;
+    return subAdmins.filter(a => a.department === dept);
+  };
 
   return (
     <DashboardLayout>
@@ -280,13 +314,18 @@ const SuperAdminPanel = () => {
                             'bg-white/10 text-white/60'
                           }`}>
                             {u.role}
+                            {u.role === 'SUBADMIN' && u.department && (
+                              <span className="ml-1.5 text-[10px] bg-amber-500/30 px-1.5 py-0.5 rounded-full">
+                                {u.department}
+                              </span>
+                            )}
                           </span>
                         </td>
                         <td className="py-4 text-right">
                           {u.id !== user.id && u.role !== 'SUPERADMIN' && (
                             <select
                               value={u.role}
-                              onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                              onChange={(e) => handleRoleChange(u.id, e.target.value, u.name)}
                               className="bg-black border border-white/20 text-white rounded-lg px-3 py-1 text-sm focus:outline-none"
                             >
                               <option value="CITIZEN">CITIZEN</option>
@@ -771,26 +810,80 @@ const SuperAdminPanel = () => {
                 </div>
               </div>
 
-              {/* Right: Sub-Admin Selection */}
+              {/* Right: Sub-Admin Selection (filtered by complaint department) */}
               <div className="p-5 space-y-2">
-                <h4 className="text-white font-semibold text-sm uppercase tracking-widest opacity-60 mb-4">Select Sub-Admin</h4>
-                {subAdmins.length === 0 ? (
-                  <p className="text-center text-white/50 py-4">No Sub-Admins found. Promote a user first.</p>
-                ) : subAdmins.map(admin => (
-                  <button
-                    key={admin.id}
-                    onClick={() => handleAssign(admin.id)}
-                    className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-emerald-500/10 border border-transparent hover:border-emerald-500/30 rounded-xl transition-all text-left group"
-                  >
-                    <div>
-                      <div className="font-medium text-white group-hover:text-emerald-400 transition-colors">{admin.name}</div>
-                      <div className="text-xs text-white/50">{admin.phone}</div>
-                      <div className="text-xs text-white/30">{admin._count?.assignedComplaints ?? 0} active cases</div>
-                    </div>
-                    <CheckCircle className="w-5 h-5 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </button>
-                ))}
+                {(() => {
+                  const dept = getComplaintDept();
+                  const filtered = filteredSubAdminsForAssign();
+                  return (
+                    <>
+                      <div className="mb-4">
+                        <h4 className="text-white font-semibold text-sm uppercase tracking-widest opacity-60">Select Sub-Admin</h4>
+                        {dept && (
+                          <p className="text-xs text-amber-400/70 mt-1">Showing only <strong>{dept}</strong> department SubAdmins</p>
+                        )}
+                      </div>
+                      {filtered.length === 0 ? (
+                        <div className="py-6 text-center space-y-2">
+                          <p className="text-white/50 text-sm">No SubAdmins for <strong className="text-amber-400">{dept}</strong> department.</p>
+                          <p className="text-white/30 text-xs">Promote a user to SubAdmin and assign them to this department first.</p>
+                        </div>
+                      ) : filtered.map(admin => (
+                        <button
+                          key={admin.id}
+                          onClick={() => handleAssign(admin.id)}
+                          className="w-full flex items-center justify-between p-4 bg-white/5 hover:bg-emerald-500/10 border border-transparent hover:border-emerald-500/30 rounded-xl transition-all text-left group"
+                        >
+                          <div>
+                            <div className="font-medium text-white group-hover:text-emerald-400 transition-colors">{admin.name}</div>
+                            <div className="text-xs text-white/50">{admin.phone}</div>
+                            <div className="flex gap-2 mt-1">
+                              <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">{admin.department}</span>
+                              <span className="text-xs text-white/30">{admin._count?.assignedComplaints ?? 0} active cases</span>
+                            </div>
+                          </div>
+                          <CheckCircle className="w-5 h-5 text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </button>
+                      ))}
+                    </>
+                  );
+                })()}
               </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Department Selection Modal — shown when promoting a user to SubAdmin */}
+      {deptModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-[#111] border border-amber-500/30 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
+          >
+            <div className="flex justify-between items-center p-5 border-b border-white/10">
+              <div>
+                <h3 className="text-lg font-bold text-white">Assign Department</h3>
+                <p className="text-white/40 text-sm mt-0.5">Select a department for <span className="text-amber-400">{deptModal.userName}</span></p>
+              </div>
+              <button onClick={() => setDeptModal({ isOpen: false, userId: null, userName: "" })} className="text-white/50 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 grid grid-cols-2 gap-3">
+              {DEPARTMENTS.map(dept => (
+                <button
+                  key={dept.id}
+                  onClick={() => handleSubAdminWithDept(dept.id)}
+                  className="flex items-center gap-3 p-4 bg-white/5 hover:bg-amber-500/10 border border-white/10 hover:border-amber-500/40 rounded-xl transition-all text-left group"
+                >
+                  <span className="text-2xl">{dept.icon}</span>
+                  <div>
+                    <div className="text-sm font-medium text-white group-hover:text-amber-400 transition-colors">{dept.label}</div>
+                  </div>
+                </button>
+              ))}
             </div>
           </motion.div>
         </div>

@@ -15,6 +15,7 @@ router.get("/users", authMiddleware, superAdminMiddleware, async (req, res) => {
         email: true,
         phone: true,
         role: true,
+        department: true,
         rewardPoints: true,
         createdAt: true,
         _count: { select: { complaints: true, assignedComplaints: true } },
@@ -30,11 +31,15 @@ router.get("/users", authMiddleware, superAdminMiddleware, async (req, res) => {
 // Update user role
 router.patch("/users/:id/role", authMiddleware, superAdminMiddleware, async (req, res) => {
   try {
-    const { role } = req.body;
+    const { role, department } = req.body;
     const userId = parseInt(req.params.id, 10);
 
     if (!["CITIZEN", "ADMIN", "SUPERADMIN", "SUBADMIN"].includes(role)) {
       return res.status(400).json({ error: "Invalid role" });
+    }
+
+    if (role === "SUBADMIN" && !department) {
+      return res.status(400).json({ error: "Department is required for SubAdmin" });
     }
 
     if (userId === req.userId) {
@@ -43,8 +48,11 @@ router.patch("/users/:id/role", authMiddleware, superAdminMiddleware, async (req
 
     const updated = await prisma.user.update({
       where: { id: userId },
-      data: { role },
-      select: { id: true, name: true, role: true, phone: true }
+      data: { 
+        role,
+        department: role === "SUBADMIN" ? department : null,
+      },
+      select: { id: true, name: true, role: true, phone: true, department: true }
     });
 
     res.json(updated);
