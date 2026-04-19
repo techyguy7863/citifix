@@ -167,19 +167,15 @@ const ReportIssue = () => {
         if (locationMismatch) return 'mismatch';
         return null;
     };
+    const vStatus = verificationStatus();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!location) {
-            toast({ title: 'Location is required!', variant: 'destructive' });
-            return;
-        }
-
-        // Block if mismatch
-        if (locationMismatch) {
+        
+        if (vStatus !== 'match') {
             toast({
-                title: 'Location mismatch',
-                description: 'You cannot submit this report because the photo location does not match your live location.',
+                title: 'Cannot Submit Report',
+                description: 'You must upload a photo with GPS data that matches your current live location.',
                 variant: 'destructive',
             });
             return;
@@ -210,7 +206,6 @@ const ReportIssue = () => {
         }
     };
 
-    const vStatus = verificationStatus();
 
     return (
         <>
@@ -397,12 +392,18 @@ const ReportIssue = () => {
                     <Button
                         type="submit"
                         className="w-full gradient-saffron text-white"
-                        disabled={isSubmitting || locationMismatch}
+                        disabled={isSubmitting || vStatus !== 'match'}
                     >
                         {isSubmitting
                             ? <><Loader2 className="animate-spin w-4 h-4 mr-2" /> Submitting...</>
-                            : locationMismatch
+                            : vStatus === 'mismatch'
                             ? '⚠️ Location Mismatch (Cannot Submit)'
+                            : vStatus === 'no_exif'
+                            ? '⚠️ No GPS Data in Photo (Cannot Submit)'
+                            : vStatus === 'need_location'
+                            ? '⚠️ Capture Live Location First'
+                            : !image
+                            ? '⚠️ Upload a Photo First'
                             : <><CheckCircle2 className="w-4 h-4 mr-2" /> Submit Report</>
                         }
                     </Button>
